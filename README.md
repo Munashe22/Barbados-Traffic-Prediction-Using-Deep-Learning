@@ -5,7 +5,7 @@ Predicting traffic flow to identify the root causes of traffic in a Barbados rou
 
 ## Helping Barbados
 
-![Barbados Flag](BarbadosFlag.png)
+![Barbados Flag](BarbadosFlag.svg)
 
 On the small island state of Barbados, cars, buses and taxis are the primary mode of transport, and traffic is a well-known problem that affects every Barbadian citizen. The Ministry of Transport and Works is trying to solve the problem with machine learning through an open competition.
 
