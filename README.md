@@ -14,3 +14,20 @@ Our task is to predict traffic congestion using machine learning, with the aim o
 Back-propagation is not allowed in training or inference. (tbd)
 
 The model will potentially help the Ministry of Transport and Works predict traffic flow and identify and address root causes of traffic in roundabouts. They will use this information to design interventions to reduce traffic across the island, improving the lives of every citizen.
+
+## Evaluation
+
+This challenge uses multi-metric evaluation. There are two error metrics: F1 and Accuracy.
+
+Your score on the leaderboard is the weighted mean of two metrics:
+
+- Macro-F1 (70%): measures how well your model performs across all four congestion classes, treating each class equally. This is important because some classes may appear less often in the data.
+- Accuracy (30%) - measures the overall percentage of correct predictions across all samples.
+
+Our model aims for high accuracy and balanced performance across all classes.
+
+For every row in the dataset, the submission contain 3 columns: id, Target and Target_Accuracy.
+
+F1 is calculated from the column Target.
+
+Accuracy is calculated from the column Target_Accuracy.
