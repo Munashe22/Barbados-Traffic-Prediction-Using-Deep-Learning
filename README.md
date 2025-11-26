@@ -29,3 +29,5 @@ For every row in the dataset, the submission contain 3 columns: id, Target and T
 F1 is calculated from the column Target.
 
 Accuracy is calculated from the column Target_Accuracy.
+
+To read more about this challenge, [Visit Zindi](https://zindi.africa/competitions/barbados-traffic-analysis-challenge)
