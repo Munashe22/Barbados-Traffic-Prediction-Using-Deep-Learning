@@ -16,7 +16,9 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, precision_score, recall_score, f1_score
+import matplotlib.pyplot as plt
+import seaborn as sns
 import warnings
 import xgboost as xgb 
 warnings.filterwarnings('ignore')
@@ -152,10 +154,93 @@ class ANNPredictor:
         
         return train_loader, val_loader
     
+    def _save_confusion_matrix_and_metrics(self, y_true, y_pred, prefix, output_dir='models'):
+        """Generate and save confusion matrix plot and metrics CSV"""
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Get class labels
+        labels = self.label_encoder.classes_
+        
+        # Calculate metrics
+        accuracy = accuracy_score(y_true, y_pred)
+        precision_macro = precision_score(y_true, y_pred, average='macro', zero_division=0)
+        precision_weighted = precision_score(y_true, y_pred, average='weighted', zero_division=0)
+        recall_macro = recall_score(y_true, y_pred, average='macro', zero_division=0)
+        recall_weighted = recall_score(y_true, y_pred, average='weighted', zero_division=0)
+        f1_macro = f1_score(y_true, y_pred, average='macro', zero_division=0)
+        f1_weighted = f1_score(y_true, y_pred, average='weighted', zero_division=0)
+        
+        # Per-class metrics
+        precision_per_class = precision_score(y_true, y_pred, average=None, zero_division=0)
+        recall_per_class = recall_score(y_true, y_pred, average=None, zero_division=0)
+        f1_per_class = f1_score(y_true, y_pred, average=None, zero_division=0)
+        
+        # Create metrics DataFrame
+        metrics_data = {
+            'metric': ['Accuracy', 
+                      'Precision (Macro)', 'Precision (Weighted)',
+                      'Recall (Macro)', 'Recall (Weighted)',
+                      'F1-Score (Macro)', 'F1-Score (Weighted)'],
+            'value': [accuracy,
+                     precision_macro, precision_weighted,
+                     recall_macro, recall_weighted,
+                     f1_macro, f1_weighted]
+        }
+        
+        # Add per-class metrics
+        for i, label in enumerate(labels):
+            metrics_data['metric'].extend([
+                f'Precision - {label}',
+                f'Recall - {label}',
+                f'F1-Score - {label}'
+            ])
+            metrics_data['value'].extend([
+                precision_per_class[i],
+                recall_per_class[i],
+                f1_per_class[i]
+            ])
+        
+        # Save metrics CSV
+        metrics_df = pd.DataFrame(metrics_data)
+        csv_path = output_dir / f'{prefix}_metrics.csv'
+        metrics_df.to_csv(csv_path, index=False)
+        print(f"  Saved metrics: {csv_path}")
+        
+        # Generate confusion matrix
+        cm = confusion_matrix(y_true, y_pred)
+        
+        # Plot confusion matrix
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                   xticklabels=labels, yticklabels=labels,
+                   cbar_kws={'label': 'Count'})
+        
+        # Add percentages
+        cm_percentages = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis] * 100
+        for i in range(len(labels)):
+            for j in range(len(labels)):
+                percentage = cm_percentages[i, j]
+                plt.text(j + 0.5, i + 0.7, f'({percentage:.1f}%)',
+                        ha='center', va='center', fontsize=9, color='gray')
+        
+        plt.title(f'Confusion Matrix - {prefix}\nAccuracy: {accuracy:.4f}', 
+                 fontsize=14, fontweight='bold', pad=20)
+        plt.ylabel('True Label', fontsize=12)
+        plt.xlabel('Predicted Label', fontsize=12)
+        plt.tight_layout()
+        
+        # Save plot
+        plot_path = output_dir / f'{prefix}_confusion_matrix.png'
+        plt.savefig(plot_path, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"  Saved confusion matrix: {plot_path}")
+    
     def train(self,
              X: np.ndarray,
              y: np.ndarray,
-             validation_split: float = 0.2) -> Dict:
+             validation_split: float = 0.2,
+             model_name: str = 'model') -> Dict:
         """
         Train ANN
         
@@ -163,6 +248,7 @@ class ANNPredictor:
             X: Feature matrix
             y: Target labels
             validation_split: Fraction of data for validation
+            model_name: Prefix for saved confusion matrices and metrics
             
         Returns:
             Dictionary with training metrics
@@ -264,7 +350,7 @@ class ANNPredictor:
                 patience_counter = 0
             else:
                 patience_counter += 1
-            
+        
         # get best model
         if best_model_state:
             self.model.load_state_dict(best_model_state)
@@ -273,8 +359,11 @@ class ANNPredictor:
         val_preds = self.predict(X_val)
         train_preds = self.predict(X_train)
         
-        train_acc = accuracy_score(y_train, self.label_encoder.transform(train_preds))
-        val_acc = accuracy_score(y_val, self.label_encoder.transform(val_preds))
+        train_preds_encoded = self.label_encoder.transform(train_preds)
+        val_preds_encoded = self.label_encoder.transform(val_preds)
+        
+        train_acc = accuracy_score(y_train, train_preds_encoded)
+        val_acc = accuracy_score(y_val, val_preds_encoded)
         
         print(f"\nTraining accuracy: {train_acc:.4f}")
         print(f"Validation accuracy: {val_acc:.4f}")
@@ -282,9 +371,14 @@ class ANNPredictor:
         print("\nValidation Classification Report:")
         print(classification_report(
             y_val, 
-            self.label_encoder.transform(val_preds),
+            val_preds_encoded,
             target_names=self.label_encoder.classes_
         ))
+        
+        # Generate confusion matrices and metrics CSVs
+        print("\nGenerating confusion matrices and metrics...")
+        self._save_confusion_matrix_and_metrics(y_train, train_preds_encoded, f'{model_name}_train')
+        self._save_confusion_matrix_and_metrics(y_val, val_preds_encoded, f'{model_name}_val')
         
         return {
             'train_accuracy': train_acc,
@@ -397,6 +491,9 @@ def train_ann_pipeline(train_features_df: pd.DataFrame,
     print(f"Dataset shape: {train_features_df.shape}")
     print(f"Target distribution:\n{train_features_df[target_col].value_counts()}")
     
+    # Determine model name from save path
+    model_name = Path(model_save_path).stem
+    
     # initialize predictor
     predictor = ANNPredictor(
         hidden_dims=hidden_dims,
@@ -410,8 +507,8 @@ def train_ann_pipeline(train_features_df: pd.DataFrame,
         fit_scaler=True
     )
     
-    # train
-    metrics = predictor.train(X, y)
+    # train (this will generate confusion matrices and CSVs)
+    metrics = predictor.train(X, y, model_name=model_name)
     
     # save
     predictor.save(model_save_path)
@@ -428,6 +525,10 @@ def train_xgboost_pipeline(train_features_df: pd.DataFrame,
     print(f"\nXGBoost Training pipeline for {target_col}")
     print(f"Dataset shape: {train_features_df.shape}")
     print(f"Target distribution:\n{train_features_df[target_col].value_counts()}")
+    
+    # Determine model name from save path
+    model_name = Path(model_save_path).stem
+    output_dir = Path(model_save_path).parent
     
     # reuse ANNPredictor
     predictor = ANNPredictor()
@@ -464,11 +565,19 @@ def train_xgboost_pipeline(train_features_df: pd.DataFrame,
     train_pred = model.predict(X_train)
     val_pred = model.predict(X_val)
     
-    print(f"\nTraining accuracy: {accuracy_score(y_train, train_pred):.4f}")
-    print(f"Validation accuracy: {accuracy_score(y_val, val_pred):.4f}")
+    train_acc = accuracy_score(y_train, train_pred)
+    val_acc = accuracy_score(y_val, val_pred)
+    
+    print(f"\nTraining accuracy: {train_acc:.4f}")
+    print(f"Validation accuracy: {val_acc:.4f}")
     
     print("\nValidation Classification Report:")
     print(classification_report(y_val, val_pred, target_names=predictor.label_encoder.classes_))
+    
+    # Generate confusion matrices and metrics CSVs
+    print("\nGenerating confusion matrices and metrics...")
+    predictor._save_confusion_matrix_and_metrics(y_train, train_pred, f'{model_name}_train', output_dir)
+    predictor._save_confusion_matrix_and_metrics(y_val, val_pred, f'{model_name}_val', output_dir)
     
     # save
     with open(model_save_path, 'wb') as f:
