@@ -31,3 +31,7 @@ F1 is calculated from the column Target.
 Accuracy is calculated from the column Target_Accuracy.
 
 To read more about this challenge, [Visit Zindi](https://zindi.africa/competitions/barbados-traffic-analysis-challenge)
+
+## Results
+
+A summary of our methodology and results can be found in our [8 page report](https://drive.google.com/file/d/1iQvKXINsTkeo7jqp8uwurACV7F5SzVR1/view?usp=sharing) 
