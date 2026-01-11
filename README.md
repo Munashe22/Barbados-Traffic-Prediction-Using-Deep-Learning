@@ -1,4 +1,4 @@
-# dsan6600-final-project
+# Barbados Traffic Prediction using Neural Networks
 Predicting traffic flow to identify the root causes of traffic in a Barbados roundabout
 
 ![Roundabout schematic](Roundabout.png)
